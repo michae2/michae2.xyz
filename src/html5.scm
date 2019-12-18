@@ -9,8 +9,12 @@
 ;;;     'xyz
 
 (library (html5)
-  (export html5-invalid?
-          html5-invalid-text
+  (export html5-invalid-chars?
+          html5-invalid-chars-value
+          html5-invalid-text?
+          html5-invalid-text-value
+          html5-invalid-node?
+          html5-invalid-node-value
           html5->ilist)
   (import (rnrs base)
           (rnrs conditions)
@@ -45,9 +49,9 @@
             [(#\x00A0) (cons* #\& #\n #\b #\s #\p #\; rest)]
             [else (cons char rest)]))))
 
-  (define-condition-type &html5-invalid &error
-    make-html5-invalid html5-invalid?
-    (text html5-invalid-text))
+  (define-condition-type &html5-invalid-chars &error
+    make-html5-invalid-chars html5-invalid-chars?
+    (value html5-invalid-chars-value))
 
   (define (html5-text-validate checks chars)
     (if (null? chars)
@@ -61,20 +65,29 @@
                 (if (null? pattern)
                     ; If a check matches and we replace the offending characters
                     ; then we must also validate the replacement.
-                    (let* ([invalid (list->string (car tocheck))]
-                           [rewrite (raise-continuable
-                                     (condition (make-html5-invalid invalid)))])
-                      (html5-text-validate checks (append rewrite rest)))
+                    (let* ([invalid (car tocheck)]
+                           [replace (raise-continuable
+                                      (condition
+                                        (make-html5-invalid-chars invalid)))])
+                      (html5-text-validate checks (append replace rest)))
                     (if (or (null? rest)
                             (not (char=? (car pattern) (car rest))))
                         (each-check (cdr tocheck))
                         (match (cdr pattern) (cdr rest)))))))))
 
+  (define-condition-type &html5-invalid-text &error
+    make-html5-invalid-text html5-invalid-text?
+    (value html5-invalid-text-value))
+
   (define (html5-text-common->ilist text checks esc? . wrap)
-    (let* ([chars (string->list text)]
-           [chars (html5-text-validate checks chars)]
-           [chars (if esc? (html5-text-escape chars) chars)])
-      (html5-text-wrap wrap chars)))
+    (if (not (string? text))
+        (let ([replace (raise-continuable
+                         (condition (make-html5-invalid-text text)))])
+          (apply html5-text-common->ilist replace checks esc? wrap))
+        (let* ([chars (string->list text)]
+               [chars (html5-text-validate checks chars)]
+               [chars (if esc? (html5-text-escape chars) chars)])
+          (html5-text-wrap wrap chars))))
 
   (define control-checks
     (do ([i 0 (+ i 1)]
@@ -87,8 +100,8 @@
     (append (map string->list '("<!--" "--!>" "-->")) control-checks))
 
   (define raw-checks
-    ; This is a bit over-restrictive, but easier than checking for all versions
-    ; of "</script>" and "</style>".
+    ; This is a bit over-restrictive, but easier than adding checks for all
+    ; capitalizations of "</script>" and "</style>".
     (append (map string->list '("</S" "</s")) control-checks))
 
   (define (html5-text->ilist text-mode text)
@@ -112,11 +125,6 @@
       [(pre) 'pre]
       [else text-mode]))
 
-  (define (html5-comment->ilist children)
-    (vector "<!-- "
-            (map (lambda (c) (html5-text->ilist 'cmnt c)) children)
-            " -->"))
-
   (define (html5-attr->ilist attr)
     (cond
       [(null? attr)
@@ -127,14 +135,23 @@
        (vector #\space (car attr) #\=
                #\" (html5-text->ilist 'attr (cdr attr)) #\")]))
 
-  (define (html5-start-tag->ilist name attrs)
-    (vector #\< name (map html5-attr->ilist attrs) #\>))
-
   (define (html5-end-tag->ilist name)
     (vector #\< #\/ name #\>))
 
+  (define (html5-start-tag->ilist name attrs)
+    (vector #\< name (map html5-attr->ilist attrs) #\>))
+
   (define (html5-void-element->ilist name attrs)
     (html5-start-tag->ilist name attrs))
+
+  (define (html5-comment->ilist children)
+    (vector "<!-- "
+            (map (lambda (c) (html5-text->ilist 'cmnt c)) children)
+            " -->"))
+
+  ;; Phrasing elements group child nodes that should all appear on one line.
+  (define (html5-phrasing->ilist text-mode children)
+    (vector (html5-nodes->ilist text-mode children)))
 
   (define (html5-element->ilist text-mode name attrs . children)
     (case name
@@ -170,6 +187,10 @@
       [else
        #f]))
 
+  (define-condition-type &html5-invalid-node &error
+    make-html5-invalid-node html5-invalid-node?
+    (value html5-invalid-node-value))
+
   (define (html5-node->ilist text-mode node)
     (cond
       [(list? node)
@@ -183,7 +204,9 @@
       [(number? node)
        (html5-text->ilist text-mode (number->string node))]
       [else
-       node]))
+       (let ([replace (raise-continuable
+                        (condition (make-html5-invalid-node node)))])
+         (html5-nodes->ilist text-mode replace))]))
 
   (define (html5-nodes->ilist text-mode nodes)
     (if (null? nodes)
@@ -193,10 +216,6 @@
           (if (list? node)
               (append node rest)
               (cons node rest)))))
-
-  ;; Phrasing elements group child nodes that should all appear on one line.
-  (define (html5-phrasing->ilist text-mode children)
-    (vector (html5-nodes->ilist text-mode children)))
 
   (define (html5->ilist nodes)
     (html5-nodes->ilist 'esc nodes)))
