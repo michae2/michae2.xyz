@@ -3,10 +3,11 @@
 ;;; The html5 data structure is a nested list of nodes, where each node is
 ;;; either an element:
 ;;;     (name ((attr . val) ...) . children)
-;;; or a bit of text:
+;;; or a literal that will become a bit of text:
 ;;;     "Four score and seven years ago"
 ;;;     #\x1f604
 ;;;     'xyz
+;;;     87
 
 (library (html5)
   (export html5-invalid-chars?
@@ -113,7 +114,7 @@
       [(raw)
        (html5-text-common->ilist text raw-checks #f 'WRAP)]
       [(pre)
-       (html5-text-common->ilist text control-checks #t #\newline)]
+       (html5-text-common->ilist text control-checks #t "\n")]
       [(esc)
        (html5-text-common->ilist text control-checks #t 'WRAP)]
       [else
@@ -130,16 +131,16 @@
       [(null? attr)
        (vector)]
       [(null? (cdr attr))
-       (vector #\space (car attr))]
+       (vector " " (car attr))]
       [else
-       (vector #\space (car attr) #\=
-               #\" (html5-text->ilist 'attr (cdr attr)) #\")]))
+       (vector " " (car attr) "=\""
+               (html5-text->ilist 'attr (cdr attr)) "\"")]))
 
   (define (html5-end-tag->ilist name)
-    (vector #\< #\/ name #\>))
+    (vector "</" name ">"))
 
   (define (html5-start-tag->ilist name attrs)
-    (vector #\< name (map html5-attr->ilist attrs) #\>))
+    (vector "<" name (map html5-attr->ilist attrs) ">"))
 
   (define (html5-void-element->ilist name attrs)
     (html5-start-tag->ilist name attrs))

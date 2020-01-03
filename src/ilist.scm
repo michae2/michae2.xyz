@@ -4,12 +4,13 @@
 ;;; hierarchical document with indents corresponding to list depth.
 
 (library (ilist)
-  (export display-ilist)
+  (export display-ilist
+          write-ilist)
   (import (rnrs base)
           (rnrs io simple))
 
   (define (ilist-indent level)
-    (make-string level #\tab))
+    (make-string (* level 2) #\space))
 
   (define (display-ilist-single level obj out)
     (cond
@@ -35,4 +36,48 @@
       objs))
 
   (define (display-ilist objs out)
-    (display-ilist-multi 0 (if (list? objs) objs (list objs)) out)))
+    (display-ilist-multi 0 (if (list? objs) objs (list objs)) out))
+
+  (define (write-ilist-single level obj out)
+    (cond
+      [(vector? obj)
+       (display "#(" out)
+       (vector-for-each (lambda (o)
+                          (display " " out)
+                          (write-ilist-single level o out))
+                        obj)
+       (display " )" out)]
+      [(list? obj)
+       (display "(" out)
+       (for-each (lambda (o)
+                   (display " " out)
+                   (write-ilist-single level o out))
+                 obj)
+       (display " )" out)]
+      [(eq? obj 'WRAP)
+       (write obj out)
+       (newline out)
+       (display (ilist-indent level) out)]
+      [else
+       (write obj out)]))
+
+  (define (write-ilist-multi level objs out)
+    (for-each
+      (lambda (obj)
+        (if (list? obj)
+            (begin
+              (display (ilist-indent level) out)
+              (display "(" out)
+              (newline out)
+              (write-ilist-multi (+ level 1) obj out)
+              (display (ilist-indent level) out)
+              (display ")" out)
+              (newline out))
+            (begin
+              (display (ilist-indent level) out)
+              (write-ilist-single level obj out)
+              (newline out))))
+      objs))
+
+  (define (write-ilist objs out)
+    (write-ilist-multi 0 (list objs) out)))
