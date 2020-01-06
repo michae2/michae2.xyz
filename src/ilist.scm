@@ -7,10 +7,12 @@
   (export display-ilist
           write-ilist)
   (import (rnrs base)
+          (rnrs control)
           (rnrs io simple))
 
-  (define (ilist-indent level)
-    (make-string (* level 2) #\space))
+  (define (display-ilist-indent level out)
+    (let ([indent (make-string (* level 2) #\space)])
+      (display indent out)))
 
   (define (display-ilist-single level obj out)
     (cond
@@ -20,7 +22,7 @@
        (for-each (lambda (o) (display-ilist-single level o out)) obj)]
       [(eq? obj 'WRAP)
        (newline out)
-       (display (ilist-indent level) out)]
+       (display-ilist-indent level out)]
       [else
        (display obj out)]))
 
@@ -30,7 +32,7 @@
         (if (list? obj)
             (display-ilist-multi (+ level 1) obj out)
             (begin
-              (display (ilist-indent level) out)
+              (display-ilist-indent level out)
               (display-ilist-single level obj out)
               (newline out))))
       objs))
@@ -41,42 +43,35 @@
   (define (write-ilist-single level obj out)
     (cond
       [(vector? obj)
-       (display "#(" out)
-       (vector-for-each (lambda (o)
-                          (display " " out)
-                          (write-ilist-single level o out))
-                        obj)
-       (display " )" out)]
+       (display "#" out)
+       (write-ilist-single level (vector->list obj) out)]
       [(list? obj)
        (display "(" out)
-       (for-each (lambda (o)
-                   (display " " out)
-                   (write-ilist-single level o out))
-                 obj)
-       (display " )" out)]
-      [(eq? obj 'WRAP)
-       (write obj out)
-       (newline out)
-       (display (ilist-indent level) out)]
+       (for-each
+         (lambda (o)
+           (display " " out)
+           (write-ilist-single (+ level 1) o out))
+         obj)
+       (display ")" out)]
       [else
-       (write obj out)]))
+       (write obj out)
+       (when (eq? obj 'WRAP)
+         (newline out)
+         (display-ilist-indent level out))]))
 
   (define (write-ilist-multi level objs out)
     (for-each
       (lambda (obj)
+        (display-ilist-indent level out)
         (if (list? obj)
             (begin
-              (display (ilist-indent level) out)
               (display "(" out)
               (newline out)
               (write-ilist-multi (+ level 1) obj out)
-              (display (ilist-indent level) out)
-              (display ")" out)
-              (newline out))
-            (begin
-              (display (ilist-indent level) out)
-              (write-ilist-single level obj out)
-              (newline out))))
+              (display-ilist-indent level out)
+              (display ")" out))
+            (write-ilist-single level obj out))
+        (newline out))
       objs))
 
   (define (write-ilist objs out)

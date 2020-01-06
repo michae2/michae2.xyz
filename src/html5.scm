@@ -3,7 +3,7 @@
 ;;; The html5 data structure is a nested list of nodes, where each node is
 ;;; either an element:
 ;;;     (name ((attr . val) ...) . children)
-;;; or a literal that will become a bit of text:
+;;; or a value that will become a bit of text:
 ;;;     "Four score and seven years ago"
 ;;;     #\x1f604
 ;;;     'xyz
@@ -12,16 +12,30 @@
 (library (html5)
   (export html5-invalid-chars?
           html5-invalid-chars-value
-          html5-invalid-text?
-          html5-invalid-text-value
+          html5-invalid-text-node?
+          html5-invalid-text-node-value
           html5-invalid-node?
           html5-invalid-node-value
-          html5->ilist)
+          html5->ilist
+          write-html5)
   (import (rnrs base)
           (rnrs conditions)
           (rnrs control)
           (rnrs exceptions)
+          (rnrs io simple)
           (rnrs lists))
+
+  (define-condition-type &html5-invalid-chars &error
+    make-html5-invalid-chars html5-invalid-chars?
+    (value html5-invalid-chars-value))
+
+  (define-condition-type &html5-invalid-text-node &error
+    make-html5-invalid-text-node html5-invalid-text-node?
+    (value html5-invalid-text-node-value))
+
+  (define-condition-type &html5-invalid-node &error
+    make-html5-invalid-node html5-invalid-node?
+    (value html5-invalid-node-value))
 
   (define (html5-text-wrap wrap chars)
     ; This currently looks for newlines, but maybe it should also count columns.
@@ -50,10 +64,6 @@
             [(#\x00A0) (cons* #\& #\n #\b #\s #\p #\; rest)]
             [else (cons char rest)]))))
 
-  (define-condition-type &html5-invalid-chars &error
-    make-html5-invalid-chars html5-invalid-chars?
-    (value html5-invalid-chars-value))
-
   (define (html5-text-validate checks chars)
     (if (null? chars)
         '()
@@ -76,14 +86,10 @@
                         (each-check (cdr tocheck))
                         (match (cdr pattern) (cdr rest)))))))))
 
-  (define-condition-type &html5-invalid-text &error
-    make-html5-invalid-text html5-invalid-text?
-    (value html5-invalid-text-value))
-
   (define (html5-text-common->ilist text checks esc? . wrap)
     (if (not (string? text))
         (let ([replace (raise-continuable
-                         (condition (make-html5-invalid-text text)))])
+                         (condition (make-html5-invalid-text-node text)))])
           (apply html5-text-common->ilist replace checks esc? wrap))
         (let* ([chars (string->list text)]
                [chars (html5-text-validate checks chars)]
@@ -188,10 +194,6 @@
       [else
        #f]))
 
-  (define-condition-type &html5-invalid-node &error
-    make-html5-invalid-node html5-invalid-node?
-    (value html5-invalid-node-value))
-
   (define (html5-node->ilist text-mode node)
     (cond
       [(list? node)
@@ -219,4 +221,32 @@
               (cons node rest)))))
 
   (define (html5->ilist nodes)
-    (html5-nodes->ilist 'esc nodes)))
+    (html5-nodes->ilist 'esc nodes))
+
+  (define (write-html5-indent level out)
+    (let ([indent (make-string (* level 2) #\space)])
+      (display indent out)))
+
+  (define (write-html5-element level out name attrs . children)
+    (display "(" out)
+    (write name out)
+    (display " " out)
+    (write attrs out)
+    (write-html5-nodes (+ level 1) children out)
+    (display ")" out))
+
+  (define (write-html5-nodes level nodes out)
+    (for-each
+      (lambda (node)
+        (newline out)
+        (write-html5-indent level out)
+        (if (list? node)
+            (apply write-html5-element level out node)
+            (write node out)))
+      nodes))
+
+  (define (write-html5 nodes out)
+    (display "(" out)
+    (write-html5-nodes 1 nodes out)
+    (display ")" out)
+    (newline out)))
