@@ -6,29 +6,35 @@
           (gen))
 
   (gen-rule ilist-scalar
-            0 -1 2/3 4.5 6+7i +inf.0 #\c #\d #\space #\space #\space "e" 'x #f)
+    [1 0]
+    [1 -1]
+    [1 2/3]
+    [1 4.5]
+    [1 6+7i]
+    [1 +inf.0]
+    [1 #\c]
+    [1 #\d]
+    [3 #\space]
+    [1 "e"]
+    [1 'x]
+    [1 #f])
 
   (gen-rule ilist-list
-            '()
-            '()
-            (cons (ilist-list) (ilist-list))
-            (cons (ilist-vector) (ilist-list))
-            (cons (ilist-scalar) (ilist-list))
-            (cons (ilist-scalar) (ilist-list)))
+    [2 '()]
+    [1 (cons (ilist-list) (ilist-list))]
+    [1 (cons (ilist-vector) (ilist-list))]
+    [2 (cons (ilist-scalar) (ilist-list))])
 
   (gen-rule ilist-vector
-            (list->vector (ilist-list)))
+    [1 (list->vector (ilist-list))])
 
   (gen-rule ilist-single
-            (ilist-scalar)
-            (ilist-vector)
-            (ilist-vector))
+    [1 (ilist-scalar)]
+    [2 (ilist-vector)])
 
   (gen-rule ilist
-            '()
-            '()
-            (cons (ilist) (ilist))
-            (cons (ilist-single) (ilist))
-            (cons (ilist-single) (ilist)))
+    [2 '()]
+    [1 (cons (ilist) (ilist))]
+    [2 (cons (ilist-single) (ilist))])
 
   (gen-start ilist-gen ilist))
