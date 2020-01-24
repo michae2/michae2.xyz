@@ -11,24 +11,24 @@
           (only (chezscheme) random random-seed))
 
   ;; Define a nonterminal symbol and a set of production rules to rewrite the
-  ;; symbol.  Each rule starts with a nonzero integer to indicate the likelihood
-  ;; of it being chosen.
+  ;; symbol.  Each rule starts with a positive real number to indicate the
+  ;; likelihood of it being chosen.
   (define-syntax gen-rule
     (lambda (x)
       (syntax-case x ()
         [(_ nonterm [n0 expr0] [n1 expr1] ...)
-         (let each ([i 0]
+         (let each ([sum 0.0]
                     [rules #'([n0 expr0] [n1 expr1] ...)]
-                    [cases '()])
+                    [clauses '()])
            (if (null? rules)
                #`(define (nonterm)
-                   (case (random #,i)
-                     #,@cases))
+                   (let ([r (random #,sum)])
+                     (cond
+                       #,@clauses)))
                (let ([rule (car rules)])
-                 (do ([i i (+ i 1)]
-                      [n (syntax->datum (car rule)) (- n 1)]
-                      [cases cases (cons #`[(#,i) #,(cadr rule)] cases)])
-                     ((zero? n) (each i (cdr rules) cases))))))])))
+                 (each (+ sum (syntax->datum (car rule)))
+                       (cdr rules)
+                       (cons #`[(>= r #,sum) #,(cadr rule)] clauses)))))])))
 
   (define-syntax gen-start
     (syntax-rules ()
