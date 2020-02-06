@@ -1,39 +1,44 @@
 #!r6rs
 
-;;; Macros to make random object generators defined as context-free grammars.
+;;; Create random object generators defined as context-free grammars.
 
 (library (gen)
-  (export gen-rule
-          gen-start)
+  (export gen-chooser-random
+          gen-grammar)
   (import (rnrs base)
           (rnrs control)
           (rnrs syntax-case)
           (only (chezscheme) random random-seed))
 
-  ;; Define a nonterminal symbol and a set of production rules to rewrite the
-  ;; symbol.  Each rule starts with a positive real number to indicate the
-  ;; likelihood of it being chosen.
-  (define-syntax gen-rule
-    (lambda (x)
-      (syntax-case x ()
-        [(_ nonterm [n0 expr0] [n1 expr1] ...)
-         (let each ([sum 0.0]
-                    [rules #'([n0 expr0] [n1 expr1] ...)]
-                    [clauses '()])
-           (if (null? rules)
-               #`(define (nonterm)
-                   (let ([r (random #,sum)])
-                     (cond
-                       #,@clauses)))
-               (let ([rule (car rules)])
-                 (each (+ sum (syntax->datum (car rule)))
-                       (cdr rules)
-                       (cons #`[(>= r #,sum) #,(cadr rule)] clauses)))))])))
+  (define (gen-chooser-random)
+    (case-lambda
+      [() #f]
+      [(seed) (random-seed seed) #f]
+      [(sum weights) (random sum)]))
 
-  (define-syntax gen-start
-    (syntax-rules ()
-      [(_ name nonterm)
-       (define name
-         (case-lambda
-           [() (nonterm)]
-           [(seed) (random-seed seed) (nonterm)]))])))
+  (define-syntax gen-grammar
+    (lambda (g)
+      (syntax-case g ()
+        [(_ name (rule ...) body ...)
+         #`(define (name chooser)
+             ; Create a procedure for each production rule.
+             #,@(map (lambda (rule)
+                       (syntax-case rule ()
+                         [(nt [w e] ...)
+                          (do ([ws #'(w ...) (cdr ws)]
+                               [es #'(e ...) (cdr es)]
+                               [sum 0.0 (+ sum (syntax->datum (car ws)))]
+                               [sums '() (cons sum sums)]
+                               [choices #'([else #f])
+                                        (cons #`[(>= choice #,sum) #,(car es)]
+                                              choices)])
+                              ((null? ws)
+                               (let ([sums (reverse sums)])
+                                 #`(define (nt)
+                                     (let ([choice (chooser #,sum '#(#,@sums))])
+                                       (cond
+                                         #,@choices))))))]))
+                     #'(rule ...))
+             (case-lambda
+               [() (chooser) body ...]
+               [(seed) (chooser seed) body ...]))]))))
