@@ -31,7 +31,7 @@
   (define-syntax gen-grammar
     (lambda (g)
       (syntax-case g ()
-        [(_ name (nt ...) body ...)
+        [(_ (name) (nt ...) body ...)
          #`(define (name chooser)
              ; Create a procedure for each nonterminal symbol.
              #,@(map (lambda (nt)
