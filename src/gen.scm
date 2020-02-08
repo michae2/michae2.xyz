@@ -1,9 +1,10 @@
 #!r6rs
 
-;;; Create random object generators defined as context-free grammars.
+;;; Object generators defined as weighted context-free grammars.
 
 (library (gen)
   (export gen-chooser-random
+          gen-chooser-trie
           gen-grammar)
   (import (rnrs base)
           (rnrs control)
@@ -14,17 +15,28 @@
     (case-lambda
       [() #f]
       [(seed) (random-seed seed) #f]
-      [(sum weights) (random sum)]))
+      [(sum partial-sums) (random sum)]))
+
+  (define (gen-chooser-trie)
+    (let ([key -1]
+          [suffix -1])
+    (case-lambda
+      [() (set! key (+ key 1)) (set! suffix key) #f]
+      [(seed) (set! key seed) (set! suffix key) #f]
+      [(sum partial-sums)
+       (let-values ([(d m) (div-and-mod suffix (vector-length partial-sums))])
+         (set! suffix d)
+         (vector-ref partial-sums m))])))
 
   (define-syntax gen-grammar
     (lambda (g)
       (syntax-case g ()
-        [(_ name (rule ...) body ...)
+        [(_ name (nt ...) body ...)
          #`(define (name chooser)
-             ; Create a procedure for each production rule.
-             #,@(map (lambda (rule)
-                       (syntax-case rule ()
-                         [(nt [w e] ...)
+             ; Create a procedure for each nonterminal symbol.
+             #,@(map (lambda (nt)
+                       (syntax-case nt (gen-rules)
+                         [(gen-rules (name) [w e] ...)
                           (do ([ws #'(w ...) (cdr ws)]
                                [es #'(e ...) (cdr es)]
                                [sum 0.0 (+ sum (syntax->datum (car ws)))]
@@ -34,11 +46,11 @@
                                               choices)])
                               ((null? ws)
                                (let ([sums (reverse sums)])
-                                 #`(define (nt)
+                                 #`(define (name)
                                      (let ([choice (chooser #,sum '#(#,@sums))])
                                        (cond
                                          #,@choices))))))]))
-                     #'(rule ...))
+                     #'(nt ...))
              (case-lambda
                [() (chooser) body ...]
                [(seed) (chooser seed) body ...]))]))))
