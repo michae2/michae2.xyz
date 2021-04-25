@@ -1,0 +1,5 @@
+(opus 0.1
+      (· "Hello, World!")
+      (© (· "March 2021")
+         (· "Seattle")
+         (§ (¶ (· "Welcome to my blog.  I hope you enjoy it.")))))

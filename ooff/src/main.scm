@@ -11,10 +11,12 @@
 (import (rnrs base)
         (rnrs io ports)
         (ilist)
-        (html5))
+        (html5)
+        (ooff))
 
 (define (ooff in out)
   (let* ([tree (get-datum in)]
+         [tree (ooff->html5 tree)]
          [tree (html5->ilist tree)])
     (display-ilist tree out)))
 
