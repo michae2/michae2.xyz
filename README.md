@@ -1,2 +1,2 @@
 # michae2.xyz
-My blog.
+My blog. (Work in progress...)
